@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <title>Dashboard Educativo - Jujuy</title>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    
+    <!-- Google Fonts para una tipografía estética -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap" rel="stylesheet">
+    
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css" crossorigin=""/>
+    <!-- MarkerCluster CSS -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/MarkerCluster.css" crossorigin=""/>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/MarkerCluster.Default.css" crossorigin=""/>
+    
+    <style>
+        * { box-sizing: border-box; }
+        html, body { height: 100%; margin: 0; padding: 0; font-family: 'Poppins', sans-serif; background-color: #f4f6f8; }
+        
+        .container { display: flex; height: 100vh; width: 100vw; overflow: hidden; }
+        
+        .sidebar { width: 380px; background-color: #ffffff; box-shadow: 2px 0 10px rgba(0,0,0,0.1); display: flex; flex-direction: column; z-index: 1000; overflow-y: auto; }
+        .header { background-color: #1a237e; color: white; padding: 20px; text-align: center; }
+        .header h2 { margin: 0; font-size: 22px; font-weight: 700; }
+        .header p { margin: 5px 0 15px; font-size: 13px; opacity: 0.9; font-weight: 400; }
+        
+        .filter-btn { background: #ff9800; color: white; border: none; padding: 10px 15px; border-radius: 6px; cursor: pointer; font-weight: 600; font-family: 'Poppins', sans-serif; width: 100%; transition: background 0.3s; }
+        .filter-btn:hover { background: #f57c00; }
+        
+        .region-list { padding: 15px; flex-grow: 1; overflow-y: auto; }
+        .region-item { padding: 12px; margin-bottom: 8px; background: #f8f9fa; border-radius: 8px; cursor: pointer; border-left: 5px solid transparent; transition: all 0.2s ease; display: flex; justify-content: space-between; align-items: center; }
+        .region-item:hover { background: #e9ecef; transform: translateX(3px); }
+        .region-item.active { background: #e3f2fd; border-left-width: 6px; }
+        .region-item h4 { margin: 0 0 4px 0; font-size: 15px; font-weight: 600; }
+        .region-item p { margin: 0; font-size: 12px; color: #666; }
+        .badge { background: #e0e0e0; color: #333; padding: 3px 8px; border-radius: 12px; font-size: 11px; font-weight: 600; }
+        
+        .info-card { background: #e3f2fd; padding: 20px; border-top: 1px solid #bbdefb; min-height: 250px; transition: all 0.3s ease; }
+        .info-card h3 { margin: 0 0 10px 0; color: #0d47a1; display: flex; align-items: center; gap: 8px; font-weight: 700; }
+        .stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 15px 0; }
+        .stat-box { background: white; padding: 12px 10px; border-radius: 8px; text-align: center; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+        .stat-box span { display: block; font-size: 22px; font-weight: 700; color: #1a237e; }
+        .stat-box small { font-size: 11px; color: #666; text-transform: uppercase; font-weight: 600; }
+        .info-card p { margin: 6px 0; font-size: 13px; line-height: 1.6; color: #333; }
+        
+        .map-container { flex-grow: 1; height: 100%; position: relative; }
+        #map { height: 100%; width: 100%; }
+        
+        /* Estilos para etiquetas permanentes en el mapa */
+        .region-label-permanent {
+            background: rgba(255, 255, 255, 0.95);
+            border: none;
+            box-shadow: 0 3px 8px rgba(0,0,0,0.15);
+            border-radius: 8px;
+            font-family: 'Poppins', sans-serif;
+            color: #1a237e;
+            padding: 6px 12px;
+            font-size: 12px;
+            font-weight: 600;
+            white-space: nowrap;
+            text-align: center;
+        }
+        .region-label-permanent b { font-size: 13px; color: #0d47a1; }
+        .region-label-permanent span { font-size: 10px; color: #607d8b; font-weight: 400; display: block; margin-top: 2px; }
+        
+        /* Modifica la flechita del tooltip para que coincida con el fondo blanco */
+        .leaflet-tooltip.region-label-permanent::before {
+            border-bottom-color: rgba(255, 255, 255, 0.95);
+        }
+        .leaflet-tooltip-bottom.region-label-permanent::before {
+            border-bottom-color: rgba(255, 255, 255, 0.95);
+        }
+
+        /* Marcadores de escuelas */
+        .school-icon-urbana { background-color: #2196f3; border: 2px solid white; border-radius: 50%; box-shadow: 0 0 4px rgba(0,0,0,0.5); }
+        .school-icon-rural { background-color: #4caf50; border: 2px solid white; border-radius: 50%; box-shadow: 0 0 4px rgba(0,0,0,0.5); }
+        
+        @media (max-width: 768px) {
+            .container { flex-direction: column; }
+            .sidebar { width: 100%; height: 50vh; order: 2; }
+            .map-container { height: 50vh; order: 1; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="sidebar">
+            <div class="header">
+                <h2>Portal Educativo</h2>
+                <p>Ministerio de Educación - Jujuy</p>
+                <button class="filter-btn" id="btn-show-all">🌍 Mostrar Toda la Provincia</button>
+            </div>
+            
+            <div class="region-list" id="region-list"></div>
+            
+            <div class="info-card" id="info-card">
+                <div style="color: #78909c; font-style: italic; text-align: center; margin-top: 50px;">
+                    Selecciona una región para ver sus estadísticas y las escuelas de su jurisdicción.
+                </div>
+            </div>
+        </div>
+        
+        <div class="map-container">
+            <div id="map"></div>
+        </div>
+    </div>
+
+    <!-- Leaflet JS -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js" crossorigin=""></script>
+    <!-- MarkerCluster JS -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/leaflet.markercluster.js" crossorigin=""></script>
+
+    <script>
+        var regions = [{"id": 1, "name": "Regi\u00f3n I", "city": "La Quiaca", "lat": -22.1055, "lon": -65.5968, "address": "G\u00fcemes 162", "color": "#d32f2f", "desc": "Abarca la Puna norte (Yavi, Santa Catalina, Rinconada).", "stats": {"escuelas": 85, "alumnos": "11.600"}}, {"id": 2, "name": "Regi\u00f3n II", "city": "Humahuaca", "lat": -23.2054, "lon": -65.3505, "address": "Buenos Aires 12", "color": "#1976d2", "desc": "Coordina la Quebrada de Humahuaca (Humahuaca, Tilcara, Tumbaya).", "stats": {"escuelas": 120, "alumnos": "14.800"}}, {"id": 3, "name": "Regi\u00f3n III", "city": "San Salvador de Jujuy", "lat": -24.1857, "lon": -65.2994, "address": "Av. 2 de Abril y 10 de Junio", "color": "#388e3c", "desc": "Comprende la capital (Dr. Manuel Belgrano). Concentra la mayor densidad.", "stats": {"escuelas": 310, "alumnos": "122.200"}}, {"id": 4, "name": "Regi\u00f3n IV", "city": "San Pedro de Jujuy", "lat": -24.233, "lon": -64.8668, "address": "Sarmiento 254", "color": "#7b1fa2", "desc": "Zona central del Ramal (San Pedro, Santa B\u00e1rbara).", "stats": {"escuelas": 150, "alumnos": "40.200"}}, {"id": 5, "name": "Regi\u00f3n V", "city": "Libertador Gral. San Mart\u00edn", "lat": -23.82, "lon": -64.7877, "address": "Entre R\u00edos e Independencia", "color": "#f57c00", "desc": "Departamento Ledesma y Valle Grande.", "stats": {"escuelas": 135, "alumnos": "32.600"}}, {"id": 6, "name": "Regi\u00f3n VI", "city": "Perico", "lat": -24.3825, "lon": -65.1162, "address": "Leandro Alem N\u00b0 424", "color": "#d84315", "desc": "Zona de los Valles (El Carmen, Palpal\u00e1, San Antonio).", "stats": {"escuelas": 210, "alumnos": "71.800"}}, {"id": 7, "name": "Regi\u00f3n VII", "city": "Abra Pampa", "lat": -22.7208, "lon": -65.6969, "address": "Sarmiento y Macedonio Graz", "color": "#0277bd", "desc": "Abarca la Puna sur (Cochinoca, Susques).", "stats": {"escuelas": 90, "alumnos": "8.500"}}];
+        var escuelas = [{"id": 101, "region_id": 1, "name": "Escuela Normal 'Gendarmer\u00eda Nacional'", "type": "Urbana", "lat": -22.108, "lon": -65.594}, {"id": 102, "region_id": 1, "name": "Escuela Secundaria Rural N\u00b0 2 - Cangrejillos", "type": "Rural", "lat": -22.245, "lon": -65.58}, {"id": 201, "region_id": 2, "name": "Escuela Normal 'Rep\u00fablica de Bolivia'", "type": "Urbana", "lat": -23.208, "lon": -65.348}, {"id": 202, "region_id": 2, "name": "Colegio Secundario N\u00b0 25 - Tilcara", "type": "Urbana", "lat": -23.5776, "lon": -65.3965}, {"id": 301, "region_id": 3, "name": "Colegio Nacional N\u00b0 1 'Teodoro S\u00e1nchez de Bustamante'", "type": "Urbana", "lat": -24.183, "lon": -65.302}, {"id": 302, "region_id": 3, "name": "E.E.T. N\u00b01 'Escol\u00e1stico Zegada'", "type": "Urbana", "lat": -24.185, "lon": -65.305}, {"id": 303, "region_id": 3, "name": "Escuela Secundaria Rural - Termas de Reyes", "type": "Rural", "lat": -24.17, "lon": -65.485}, {"id": 401, "region_id": 4, "name": "Centro Polivalente de Arte - San Pedro", "type": "Urbana", "lat": -24.23, "lon": -64.86}, {"id": 402, "region_id": 4, "name": "Escuela Agrot\u00e9cnica N\u00b0 4 - La Esperanza", "type": "Rural", "lat": -24.22, "lon": -64.84}, {"id": 501, "region_id": 5, "name": "Escuela Normal Superior - Ledesma", "type": "Urbana", "lat": -23.825, "lon": -64.78}, {"id": 502, "region_id": 5, "name": "Bachillerato Provincial N\u00b0 1 - Fraile Pintado", "type": "Urbana", "lat": -23.95, "lon": -64.8}, {"id": 601, "region_id": 6, "name": "Escuela de Comercio N\u00b0 1 - Perico", "type": "Urbana", "lat": -24.38, "lon": -65.11}, {"id": 602, "region_id": 6, "name": "Colegio Secundario N\u00b0 1 - El Carmen", "type": "Urbana", "lat": -24.385, "lon": -65.258}, {"id": 701, "region_id": 7, "name": "Escuela Normal - Abra Pampa", "type": "Urbana", "lat": -22.725, "lon": -65.69}, {"id": 702, "region_id": 7, "name": "Escuela Secundaria Rural - Loma Blanca", "type": "Rural", "lat": -22.78, "lon": -66.05}];
+        
+        var map = L.map('map', {
+            maxBounds: [[-24.9, -66.9], [-21.6, -64.0]],
+            maxBoundsViscosity: 1.0,
+            minZoom: 8
+        }).setView([-23.5, -65.3], 8);
+
+        L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}', {
+            maxZoom: 16,
+            attribution: '&copy; Esri'
+        }).addTo(map);
+
+        var markersCluster = L.markerClusterGroup({ chunkedLoading: true, spiderfyOnMaxZoom: true });
+        map.addLayer(markersCluster);
+
+        var layerSedes = L.featureGroup().addTo(map);
+        var currentRegionId = null;
+
+        fetch('https://nominatim.openstreetmap.org/search?state=Jujuy&country=Argentina&polygon_geojson=1&format=json')
+            .then(res => res.json())
+            .then(data => {
+                if (data && data.length > 0) {
+                    L.geoJSON(data[0].geojson, {
+                        style: { color: "#1a237e", weight: 2, opacity: 0.5, fillOpacity: 0.02 }, interactive: false
+                    }).addTo(map);
+                }
+            });
+
+        var listContainer = document.getElementById('region-list');
+        var infoCard = document.getElementById('info-card');
+
+        function updateInfoCard(region) {
+            infoCard.innerHTML = `
+                <h3 style="color: ${region.color}">
+                    <span style="display:inline-block; width:14px; height:14px; border-radius:50%; background:${region.color};"></span>
+                    ${region.name}
+                </h3>
+                <div class="stats-grid">
+                    <div class="stat-box">
+                        <span>${region.stats.escuelas}</span>
+                        <small>Escuelas Aprox.</small>
+                    </div>
+                    <div class="stat-box">
+                        <span>${region.stats.alumnos}</span>
+                        <small>Alumnos</small>
+                    </div>
+                </div>
+                <p><strong>📍 Sede Principal:</strong> ${region.city} (${region.address})</p>
+                <p><strong>📝 Jurisdicción:</strong> ${region.desc}</p>
+                <p style="margin-top: 15px; font-size: 11px; color: #00796b; font-weight: 600;">
+                    <span style="display:inline-block; width:10px; height:10px; background:#4caf50; border-radius:50%; margin-right:5px; vertical-align: middle;"></span> Rurales
+                    <span style="display:inline-block; width:10px; height:10px; background:#2196f3; border-radius:50%; margin-left:15px; margin-right:5px; vertical-align: middle;"></span> Urbanas
+                </p>
+            `;
+        }
+
+        function renderEscuelas(regionId) {
+            markersCluster.clearLayers();
+            var escuelasFiltradas = regionId ? escuelas.filter(e => e.region_id === regionId) : escuelas;
+            
+            escuelasFiltradas.forEach(function(esc) {
+                var isRural = esc.type === 'Rural';
+                var customIcon = L.divIcon({
+                    className: isRural ? 'school-icon-rural' : 'school-icon-urbana',
+                    iconSize: [14, 14]
+                });
+
+                var marker = L.marker([esc.lat, esc.lon], { icon: customIcon });
+                marker.bindPopup(`<div style="font-family:'Poppins',sans-serif;"><b>${esc.name}</b><br>Tipo: ${esc.type}</div>`);
+                markersCluster.addLayer(marker);
+            });
+        }
+
+        regions.forEach(function(r) {
+            var sedeMarker = L.circleMarker([r.lat, r.lon], {
+                color: r.color, fillColor: r.color, fillOpacity: 1, radius: 8, weight: 2
+            }).addTo(layerSedes);
+            
+            // AQUI ESTÁ EL CAMBIO SOLICITADO: Etiqueta siempre visible con estilo estético
+            sedeMarker.bindTooltip(
+                `<b>${r.name}</b><span>${r.city}</span>`, 
+                {
+                    permanent: true,       // Hace que siempre se vea
+                    direction: 'bottom',   // Aparece debajo del punto
+                    className: 'region-label-permanent', // Clase CSS personalizada
+                    offset: [0, 8]         // Separación del punto
+                }
+            );
+
+            var listItem = document.createElement('div');
+            listItem.className = 'region-item';
+            listItem.id = 'list-item-' + r.id;
+            listItem.style.borderLeftColor = r.color;
+            listItem.innerHTML = `
+                <div>
+                    <h4>${r.name}</h4>
+                    <p>${r.city}</p>
+                </div>
+                <span class="badge" style="background:${r.color}20; color:${r.color};">Sede</span>
+            `;
+            
+            function selectRegion() {
+                document.querySelectorAll('.region-item').forEach(el => el.classList.remove('active'));
+                listItem.classList.add('active');
+                currentRegionId = r.id;
+                updateInfoCard(r);
+                renderEscuelas(r.id);
+                map.flyTo([r.lat, r.lon], 11, { animate: true, duration: 1.5 });
+            }
+
+            sedeMarker.on('click', selectRegion);
+            listItem.addEventListener('click', selectRegion);
+            
+            listContainer.appendChild(listItem);
+        });
+
+        document.getElementById('btn-show-all').addEventListener('click', function() {
+            document.querySelectorAll('.region-item').forEach(el => el.classList.remove('active'));
+            currentRegionId = null;
+            infoCard.innerHTML = `<div style="color: #78909c; font-style: italic; text-align: center; margin-top: 50px;">Mostrando vista general de la provincia. Selecciona una región para ver detalles.</div>`;
+            renderEscuelas(null);
+            map.flyTo([-23.5, -65.3], 8, { animate: true, duration: 1.5 });
+        });
+
+        renderEscuelas(null);
+
+    </script>
+</body>
+</html>
